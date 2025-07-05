@@ -47,7 +47,7 @@ You must add a '•' symbol every 5 to 10 words at natural pauses where your res
     this.updateUserContext(name, role, text);
 
     const stream = await this.openai.chat.completions.create({
-      model: 'gpt-4o-latest',
+      model: 'gpt-3.5-turbo',
       messages: this.userContext,
       stream: true,
     });
