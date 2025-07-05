@@ -70,7 +70,7 @@ app.ws('/connection', (ws) => {
         streamService.setStreamSid(streamSid);
         gptService.setCallSid(callSid);
         console.log(`Twilio -> Starting Media Stream for ${streamSid}`.underline.red);
-        ttsService.generate({partialResponseIndex: null, partialResponse: 'Welcome to Bart\'s Automotive. • How can I help you today?'}, 0);
+        ttsService.generate({partialResponseIndex: null, partialResponse: 'Welcome to ACL Automobile Club Luxembourg. • How can I help you today?'}, 0);
       } 
       else if (msg.event === 'media') {
         // Received audio from caller - send to transcription
