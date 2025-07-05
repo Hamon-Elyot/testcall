@@ -113,6 +113,9 @@ app.ws('/connection', (ws) => {
    console.log(err);
  }
 });
+app.get('/', (req, res) => {
+  res.send('✅ AI Assistant is live!');
+});
 
 // Start the server
 app.listen(PORT, '0.0.0.0', () => {
