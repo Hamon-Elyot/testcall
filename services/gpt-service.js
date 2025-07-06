@@ -3,14 +3,12 @@ require('dotenv').config();
 require('colors');
 const EventEmitter = require('events');
 const OpenAI = require('openai');
+const { appendAppointment } = require('./google-sheets');
 
 class GptService extends EventEmitter {
   constructor() {
     super();
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     this.resetContext();
   }
 
@@ -18,48 +16,59 @@ class GptService extends EventEmitter {
     this.userContext = [
       {
         role: 'system',
-        content: `You are ACL Assistant, helping ACL members in Luxembourg with roadside assistance, travel advice, and events. 
-• Always identify yourself: "Hello, this is the ACL virtual assistant." 
-• Keep responses brief and helpful (max one question at a time). 
-• Use ACL key info:
-  - 24/7 roadside assistance in Luxembourg and Europe
-  - Member benefits: towing, car rental, diagnostics, travel advice
-  - Contact numbers: +352 26 000 (single assistance), +352 45 00 45 -1 (member services, Mon–Fri 8–18)
-• If it's urgent or outside your scope, offer to connect them with a human agent.
-• Inform at start: "This call is recorded for quality and assistance purposes."
-You must add a '•' symbol every 5 to 10 words at natural pauses where your response can be split for text to speech.`
+        content: `
+You are ACL Assistant, an intelligent and polite virtual agent for the Automobile Club Luxembourg (ACL). You assist members with roadside services, general inquiries, travel advice, and appointment bookings.
+
+🟡 Key Behavior Rules:
+- Always begin by identifying yourself: "Hello, this is the ACL virtual assistant."
+- Clearly inform: "This call is recorded for quality and assistance purposes."
+- Keep responses clear, concise, and friendly.
+- Ask one question at a time, wait for a user response before continuing.
+- Insert a '•' bullet every 5–10 words at natural pauses for text-to-speech pacing.
+
+✅ ACL Key Services to Mention:
+- Roadside assistance in Luxembourg and Europe (24/7)
+- Member benefits: towing, diagnostics, travel planning, vehicle rental
+- Contact numbers: +352 26 000 (assistance), +352 45 00 45 -1 (member services, Mon–Fri 8–18)
+
+📅 Appointments:
+- You can assist members in booking appointments such as vehicle diagnostics, roadworthiness checks, or travel consultations.
+- Always ask for: name, membership number (if available), type of appointment, preferred date/time, phone, and email.
+- Once collected, confirm the information and return it wrapped in a tag like <save_appointment>.
+- Example: "<save_appointment>John Doe, 123456, Vehicle Check, 2025-07-08, 10:00, +352 621 000 111, john@example.com</save_appointment>"
+
+🆘 Escalation:
+- If the request is urgent or beyond your capability, say: “Let me connect you with a human agent.”
+
+Example starter: 
+"Hello, this is the ACL virtual assistant. • This call is recorded for quality and assistance purposes. • How can I help you today?"
+`
       },
       {
         role: 'assistant',
-        content: `Hello, this is the A.C.L virtual assistant. • This call is recorded for quality and assistance purposes. • How can I assist you today?`
+        content: `Hello, this is the ACL virtual assistant. • This call is recorded for quality and assistance purposes. • How can I help you today?`
       }
     ];
     this.partialResponseIndex = 0;
   }
 
   setCallSid(callSid) {
-    // Reset context per call to avoid context bleed across calls
     this.resetContext();
     this.userContext.push({ role: 'system', content: `callSid: ${callSid}` });
     this.partialResponseIndex = 0;
   }
 
   updateUserContext(role, content) {
-    // Add user or assistant message to context
     this.userContext.push({ role, content });
-
-    // Limit context length to last 20 messages to control token size
     if (this.userContext.length > 20) {
-      this.userContext = this.userContext.slice(this.userContext.length - 20);
+      this.userContext = this.userContext.slice(-20);
     }
   }
 
   async completion(text, interactionCount) {
     try {
-      // Add user input
       this.updateUserContext('user', text);
 
-      // Create streaming chat completion
       const stream = await this.openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: this.userContext,
@@ -76,7 +85,6 @@ You must add a '•' symbol every 5 to 10 words at natural pauses where your res
         completeResponse += content;
         partialResponse += content;
 
-        // Emit partial responses when a '•' is encountered or when complete
         if (content.trim().endsWith('•') || finishReason === 'stop') {
           const gptReply = {
             partialResponseIndex: this.partialResponseIndex,
@@ -88,14 +96,35 @@ You must add a '•' symbol every 5 to 10 words at natural pauses where your res
         }
       }
 
-      // Add assistant full reply to context
       this.updateUserContext('assistant', completeResponse);
-
       console.log(`GPT -> user context length: ${this.userContext.length}`.green);
+
+      // Handle saving appointment to Google Sheets
+      const appointmentMatch = completeResponse.match(/<save_appointment>(.*?)<\/save_appointment>/i);
+      if (appointmentMatch) {
+        const appointmentText = appointmentMatch[1];
+        const parsed = this.extractAppointmentData(appointmentText);
+        if (parsed) {
+          await appendAppointment(parsed);
+          console.log('✅ Appointment saved to Google Sheets'.cyan);
+        }
+      }
+
     } catch (error) {
       console.error('Error during GPT completion:', error);
       this.emit('error', error);
     }
+  }
+
+  extractAppointmentData(text) {
+    const parts = text.split(',').map(p => p.trim());
+    if (parts.length < 7) {
+      console.warn('⚠️ Could not parse appointment properly. Expecting 7 fields.');
+      return null;
+    }
+
+    const [name, membership, type, date, time, phone, email] = parts;
+    return [name, membership, type, date, time, phone, email];
   }
 }
 
