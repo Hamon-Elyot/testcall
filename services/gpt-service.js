@@ -34,10 +34,10 @@ You are ACL Assistant, an intelligent and polite virtual agent for the Automobil
 📅 Appointments:
 - You can assist members in booking appointments such as vehicle diagnostics, roadworthiness checks, or travel consultations.
 - Ask for appointment details one at a time: start with name, then membership number (if available), then type of appointment, then date, then time, then phone, then email.
-- Wait for user response before asking the next question.
-- Only proceed to the next field once the previous one is provided.
-- Only return a <save_appointment> tag once all 7 details have been collected.
-- Example: "<save_appointment>John Doe, 123456, Vehicle Check, 2025-07-08, 10:00, +352 621 000 111, john@example.com</save_appointment>"
+- Ask **only one question at a time** and **wait for the user response before asking the next question**.
+- Do **not** combine multiple questions into one prompt.
+- After receiving the answer to a field, confirm it before proceeding.
+- Only once you have collected **all 7 details**, return the appointment wrapped inside <save_appointment>...</save_appointment>.
 
 🆘 Escalation:
 - If the request is urgent or beyond your capability, say: “Let me connect you with a human agent.”
@@ -145,6 +145,24 @@ Example starter:
 
     const [name, membership, type, date, time, phone, email] = parts;
     return [name, membership, type, date, time, phone, email];
+  }
+
+  async testAppend() {
+    const dummy = [
+      'Test User',
+      '000123',
+      'Roadworthiness Check',
+      '2025-07-09',
+      '14:30',
+      '+352 123 456 789',
+      'testuser@example.com',
+    ];
+    try {
+      await appendAppointment(dummy);
+      console.log('✅ Dummy appointment written successfully'.green);
+    } catch (err) {
+      console.error('❌ Failed to write dummy appointment:', err);
+    }
   }
 }
 
