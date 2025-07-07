@@ -3,7 +3,7 @@ require('dotenv').config();
 require('colors');
 const EventEmitter = require('events');
 const OpenAI = require('openai');
-const { appendAppointment } = require('./google-sheets');
+const { appendAppointment, appendSummary } = require('./google-sheets');
 
 class GptService extends EventEmitter {
   constructor() {
@@ -50,9 +50,11 @@ Example starter:
       }
     ];
     this.partialResponseIndex = 0;
+    this.callSid = null;
   }
 
   setCallSid(callSid) {
+    this.callSid = callSid;
     this.resetContext();
     this.userContext.push({ role: 'system', content: `callSid: ${callSid}` });
     this.partialResponseIndex = 0;
@@ -99,7 +101,6 @@ Example starter:
       this.updateUserContext('assistant', completeResponse);
       console.log(`GPT -> user context length: ${this.userContext.length}`.green);
 
-      // Handle saving appointment to Google Sheets
       const appointmentMatch = completeResponse.match(/<save_appointment>(.*?)<\/save_appointment>/i);
       if (appointmentMatch) {
         const appointmentText = appointmentMatch[1];
@@ -110,6 +111,23 @@ Example starter:
         }
       }
 
+      if (interactionCount > 2 && this.callSid) {
+        const summaryPrompt = [
+          ...this.userContext,
+          { role: 'system', content: 'Please summarize this call in 2–3 sentences for internal review.' }
+        ];
+
+        const summaryCompletion = await this.openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: summaryPrompt,
+        });
+
+        const summary = summaryCompletion.choices?.[0]?.message?.content?.trim();
+        if (summary) {
+          await appendSummary(this.callSid, summary);
+          console.log('📝 Call summary saved to Google Sheets'.cyan);
+        }
+      }
     } catch (error) {
       console.error('Error during GPT completion:', error);
       this.emit('error', error);
