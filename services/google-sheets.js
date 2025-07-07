@@ -32,7 +32,7 @@ async function appendSummary(callSid, summary) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Summaries!A1',
+    range: 'Summaries',
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     resource: {
