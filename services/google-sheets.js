@@ -17,7 +17,7 @@ async function appendAppointment(dataRow) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Appointments!A1',
+    range: 'Appointments',
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     resource: {
